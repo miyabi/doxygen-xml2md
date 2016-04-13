@@ -1,15 +1,26 @@
 require 'rexml/document'
 
-def parseElement(element, decorate=true)
-	emphasis = ''
+def parseElement(element, decorate=true, html=false)
+	em_left = ''
+	em_right = ''
+	code_left = ''
+	code_right = ''
 	if decorate then
-		emphasis = '*'
+		if html then
+			em_left = '<em>'
+			em_right = '</em>'
+			code_left = '<code>'
+			code_right = '</code>'
+		else
+			em_left = em_right ='*'
+			code_left = code_right ='`'
+		end
 	end
 
 	text = element.to_s.gsub(/^<(\w+)[^>]*>(.+)<\/\1>$/, '\2')
-	text = text.gsub(/<(ref)[^>]*>([^<]+)<\/\1>/, "#{emphasis}\\2#{emphasis}")
-	text = text.gsub(/<(emphasis)>([^<]+)<\/\1>/, "#{emphasis}\\2#{emphasis}")
-	text = text.gsub(/<(computeroutput)>([^<]+)<\/\1>/, "`\\2`")
+	text = text.gsub(/<(ref)[^>]*>([^<]+)<\/\1>/, "#{em_left}\\2#{em_right}")
+	text = text.gsub(/<(emphasis)>([^<]+)<\/\1>/, "#{em_left}\\2#{em_right}")
+	text = text.gsub(/<(computeroutput)>([^<]+)<\/\1>/, "#{code_left}\\2#{code_right}")
 	print text
 end
 
@@ -19,7 +30,7 @@ def parseParas(paras, combine=false)
 		if count >= 1 and combine != false then
 			print combine
 		end
-		parseElement(para)
+		parseElement(para, true)
 		if combine == false then
 			print "\n"
 		end
@@ -31,24 +42,33 @@ def parseParas(paras, combine=false)
 end
 
 def parseSimpeSect(simplesect)
+	if not simplesect.has_elements? then
+		return
+	end
+
 	kind = simplesect.attribute('kind').to_s
 	if kind == 'return' then
-		print "#### Returns\n\n"
+		print "<dl>\n\t<dt>Returns</dt>\n"
 	else
 		return
 	end
 
-	if simplesect.has_elements? then
-		print "-\t"
-		parseParas(simplesect)
-		print "\n"
-	end
+	simplesect.elements.each('para') { |para|
+		print "\t<dd>"
+		parseElement(para, true, true)
+		print "</dd>\n"
+	}
+	print "</dl>\n\n"
 end
 
 def parseParameterList(parameterlist)
+	if not parameterlist.has_elements? then
+		return
+	end
+
 	kind = parameterlist.attribute('kind').to_s
-	if kind == 'param' then
-		print "#### Parameters\n\n"
+	if kind == 'param'then
+		print "<dl>\n\t<dt>Parameters</dt>\n"
 	else
 		return
 	end
@@ -59,22 +79,20 @@ def parseParameterList(parameterlist)
 			next
 		end
 
-		print "-\t"
+		print "\t<dd>"
 		parameteritem.elements.each_with_index('parameternamelist/parametername') { |parametername, i|
 			if i >= 1 then print " " end
-			print "*#{parametername.text}*"
+			print "<em>#{parametername.text}</em>"
 		}
 		if parameteritem.elements['parameterdescription'].has_elements? then
 			print " - "
 			parseParas(parameteritem.elements['parameterdescription'], ' ')
 		end
-		print "\n"
+		print "</dd>\n"
 		count += 1
 	}
 
-	if count >= 1 then
-		print "\n"
-	end
+	print "</dl>\n\n"
 end
 
 def parseDetailedDescription(detaileddescription)
